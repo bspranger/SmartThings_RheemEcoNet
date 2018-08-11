@@ -208,7 +208,7 @@ def setDeviceEnabled(childDevice, enabled) {
 def setDeviceMode(childDevice, mode) {
 	log.info "setDeviceEnabled: $childDevice.deviceNetworkId $enabled" 
 	if (login()) {
-    	apiPut("/equipment/$childDevice.deviceNetworkId", [
+    	apiPut("/equipment/$childDevice.deviceNetworkId/modes", [
         	body: [
                 mode: mode,
             ]
