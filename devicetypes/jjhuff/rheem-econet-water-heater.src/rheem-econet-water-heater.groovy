@@ -97,8 +97,8 @@ metadata {
                     ]
                 )
         }
-        standardTile("lowerTemp", "device.lowerTemp", decoration: "flat", width: 3, height: 2){
-                state("temperature", label:'Lower\n${currentValue}°',
+     standardTile("lowerTemp", "device.lowerTemp", decoration: "flat", width: 3, height: 2){
+                state("temperature", label:'Low\n${currentValue}°',
                 backgroundColors:[
 					[value: 90,  color: "#f49b88"],
 					[value: 100, color: "#f28770"],
@@ -110,19 +110,19 @@ metadata {
                 )
         }
         standardTile("HeatPumpOnly", "device.switch", decoration: "flat", width: 2, height: 2) {
-			state("default", action:"RequestHeatPumpOnly", label: 'Rqst:\nHeat Pump')
+			state("default", action:"RequestHeatPumpOnly", label: 'Rqst:Heat Pump')
 		}
         standardTile("HighDemand", "device.switch", decoration: "flat", width: 2, height: 2) {
-			state("default", action:"RequestHighDemand", label: 'Rqst:\nHigh Dmd')
+			state("default", action:"RequestHighDemand", label: 'Rqst:High Dmd')
 		}
         standardTile("Off", "device.switch", decoration: "flat", width: 2, height: 2) {
-			state("default", action:"RequestOff", label: 'Rqst:\nOff')
+			state("default", action:"RequestOff", label: 'Rqst:Off')
 		}
         standardTile("EnergySaver", "device.switch", decoration: "flat", width: 2, height: 2) {
-			state("default", action:"RequestEnergySave", label: 'Rqst:\nEnrgy Sav')
+			state("default", action:"RequestEnergySave", label: 'Rqst:Enrgy Sav')
 		}
         standardTile("ElectricOnly", "device.switch", decoration: "flat", width: 2, height: 2) {
-			state("default", action:"RequestElectricOnly", label: 'Rqst:\nElec Only')
+			state("default", action:"RequestElectricOnly", label: 'Rqst:Elec Only')
 		}
         standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 2)
         {
