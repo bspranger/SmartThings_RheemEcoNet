@@ -42,7 +42,7 @@ def prefLogIn() {
 			input("password", "password", title: "Password", description: "Rheem EcoNet password (case sensitive)")
 		} 
 		section("Advanced Options"){
-			input "isDebugEnabled", "bool", title: "Enable Debugging?", defaultValue: false
+			input(name: "polling", title: "Server Polling (in Minutes)", type: "int", description: "in minutes", defaultValue: "5" )
 		}
 	}
 }
@@ -87,22 +87,32 @@ def initialize() {
 	    
 	// Create selected devices
 	def waterHeaterList = getWaterHeaterList()
-   	def selectedDevices = [] + getSelectedDevices("waterheater")
-	    selectedDevices.each {
-		def dev = getChildDevice(it)
-		def name  = waterHeaterList[it]
-		if (dev == null) {
-			try {
-				addChildDevice("jjhuff", "Rheem Econet Water Heater", it, null, ["name": "Rheem Econet: " + name])
-		    } catch (e)	{
-					logDebug "addChildDevice Error: $e"
-			}
-		}
-	    }
-       
+    def selectedDevices = [] + getSelectedDevices("waterheater")
+    selectedDevices.each {
+    	def dev = getChildDevice(it)
+        def name  = waterHeaterList[it]
+        if (dev == null) {
+	        try {
+    			addChildDevice("jjhuff", "Rheem Econet Water Heater", it, null, ["name": "Rheem Econet: " + name])
+    	    } catch (e)	{
+				log.debug "addChildDevice Error: $e"
+          	}
+        }
+    }
+    
+	// Remove unselected devices
+	/*def deleteDevices = (selectedDevices) ? (getChildDevices().findAll { !selectedDevices.contains(it.deviceNetworkId) }) : getAllChildDevices()
+	deleteDevices.each { deleteChildDevice(it.deviceNetworkId) } */
+	
+	//Subscribes to sunrise and sunset event to trigger refreshes
+	subscribe(location, "sunrise", runRefresh)
+	subscribe(location, "sunset", runRefresh)
+	subscribe(location, "mode", runRefresh)
+	subscribe(location, "sunriseTime", runRefresh)
+	subscribe(location, "sunsetTime", runRefresh)
+	    
 	//Refresh devices
-	refresh()
-	runEvery1Minute(refresh)
+	runRefresh()
 }
 
 def getSelectedDevices( settingsName ) {
@@ -134,22 +144,48 @@ def refresh() {
     	return
     }
     
-	logDebug "Refreshing data..."
+	log.info "Refreshing data..."
+    // update last refresh
+	state.polling?.last = now()
 
 	// get all the children and send updates
 	getAllChildDevices().each {
     	def id = it.deviceNetworkId
     	apiGet("/equipment/$id", [] ) { response ->
     		if (response.status == 200) {
-            	logDebug "Got data: $response.data"
+            	log.debug "Got data: $response.data"
             	it.updateDeviceData(response.data)
             }
         }
+
     }
+    
+	//schedule the rescheduler to schedule refresh ;)
+	if ((state.polling?.rescheduler?:0) + 2400000 < now()) {
+		log.info "Scheduling Auto Rescheduler.."
+		runEvery30Minutes(runRefresh)
+		state.polling?.rescheduler = now()
+	}
+}
+
+// Schedule refresh
+def runRefresh(evt) {
+	log.info "Last refresh was "  + ((now() - state.polling?.last?:0)/60000) + " minutes ago"
+	// Reschedule if  didn't update for more than 5 minutes plus specified polling
+	if ((((state.polling?.last?:0) + (((settings.polling?.toInteger()?:1>0)?:1) * 60000) + 300000) < now()) && canSchedule()) {
+		log.info "Scheduling Auto Refresh.."
+		schedule("* */" + ((settings.polling?.toInteger()?:1>0)?:1) + " * * * ?", refresh)
+	}
+    
+	// Force Refresh NOWWW!!!!
+	refresh()
+    
+	//Update rescheduler's last run
+	if (!evt) state.polling?.rescheduler = now()
 }
 
 def setDeviceSetPoint(childDevice, setpoint) { 
-	logDebug "setDeviceSetPoint: $childDevice.deviceNetworkId $setpoint" 
+	log.info "setDeviceSetPoint: $childDevice.deviceNetworkId $setpoint" 
 	if (login()) {
     	apiPut("/equipment/$childDevice.deviceNetworkId", [
         	body: [
@@ -160,7 +196,7 @@ def setDeviceSetPoint(childDevice, setpoint) {
 
 }
 def setDeviceEnabled(childDevice, enabled) {
-	logDebug "setDeviceEnabled: $childDevice.deviceNetworkId $enabled" 
+	log.info "setDeviceEnabled: $childDevice.deviceNetworkId $enabled" 
 	if (login()) {
     	apiPut("/equipment/$childDevice.deviceNetworkId", [
         	body: [
@@ -170,7 +206,7 @@ def setDeviceEnabled(childDevice, enabled) {
     }
 }
 def setDeviceMode(childDevice, mode) {
-	logDebug "setDeviceEnabled: $childDevice.deviceNetworkId $enabled" 
+	log.info "setDeviceEnabled: $childDevice.deviceNetworkId $enabled" 
 	if (login()) {
     	apiPut("/equipment/$childDevice.deviceNetworkId/modes", [
         	body: [
@@ -180,7 +216,7 @@ def setDeviceMode(childDevice, mode) {
     }
 }
 def setDeviceOnVacation(childDevice, OnVacation) {
-	logDebug "setDeviceOnVacation: $childDevice.deviceNetworkId $OnVacation" 
+	log.info "setDeviceOnVacation: $childDevice.deviceNetworkId $OnVacation" 
 	if (login()) {
     	apiPut("/equipment/$childDevice.deviceNetworkId", [
         	body: [
@@ -206,7 +242,7 @@ private login() {
     	try {
 			httpPost(apiParams) { response -> 
             	if (response.status == 200) {
-                	logDebug "Login good!"
+                	log.debug "Login good!"
                 	state.session = [ 
                     	accessToken: response.data.access_token,
                     	refreshToken: response.data.refresh_token,
@@ -218,7 +254,7 @@ private login() {
             	} 	
         	}
 		}	catch (e)	{
-			logDebug "API Error: $e"
+			log.debug "API Error: $e"
         	return false
 		}
 	} else { 
@@ -237,13 +273,13 @@ private apiGet(apiPath, apiParams = [], callback = {}) {
         headers: ["Authorization": getApiAuth()],
         requestContentType: "application/json",
 	] + apiParams
-	logDebug "GET: $apiParams"
+	log.debug "GET: $apiParams"
 	try {
 		httpGet(apiParams) { response -> 
         	callback(response)
         }
 	}	catch (e)	{
-		logDebug "API Error: $e"
+		log.debug "API Error: $e"
 	}
 }
 
@@ -256,13 +292,13 @@ private apiPut(apiPath, apiParams = [], callback = {}) {
         headers: ["Authorization": getApiAuth()],
         requestContentType: "application/json",
 	] + apiParams
-	logDebug "apiPut: $apiParams"
+	log.debug "apiPut: $apiParams"
 	try {
 		httpPut(apiParams) { response -> 
         	callback(response)
         }
 	}	catch (e)	{
-		logDebug "API Error: $e"
+		log.debug "API Error: $e"
 	}
 }
 
