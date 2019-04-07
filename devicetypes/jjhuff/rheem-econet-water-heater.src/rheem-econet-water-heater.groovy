@@ -177,11 +177,11 @@ def RequestOff(){
     parent.refresh()
 }
 def RequestHeatPumpOnly(){
-	parent.setDeviceMode(this.device, "Heat Pump Only")
+	parent.setDeviceMode(this.device, "Heat Pump")
     parent.refresh()
 }
 def RequestElectricOnly(){
-	parent.setDeviceMode(this.device, "Electric-Only")
+	parent.setDeviceMode(this.device, "Electric")
     parent.refresh()
 }
 
